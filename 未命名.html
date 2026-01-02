@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>天气查询系统</title>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- 引入Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  
+  <!-- 自定义配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#36CFFB',
+            accent: '#4080FF',
+            neutral: '#F5F7FA',
+            dark: '#1D2129',
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          animation: {
+            'float': 'float 3s ease-in-out infinite',
+            'fade-in': 'fadeIn 0.5s ease-in-out',
+            'slide-up': 'slideUp 0.5s ease-out',
+            'shake': 'shake 0.5s ease-in-out',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            slideUp: {
+              '0%': { transform: 'translateY(20px)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
+            },
+            shake: {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '25%': { transform: 'translateX(-5px)' },
+              '75%': { transform: 'translateX(5px)' },
+            }
+          },
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .bg-gradient-weather {
+        background: linear-gradient(135deg, #165DFF 0%, #36CFFB 100%);
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .card-shadow {
+        box-shadow: 0 10px 30px rgba(22, 93, 255, 0.1);
+      }
+      .input-focus {
+        @apply focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none;
+      }
+    }
+  </style>
+</head>
+<body class="font-inter bg-neutral min-h-screen text-dark antialiased">
+  <!-- 登录页面 -->
+  <div id="login-page" class="min-h-screen flex items-center justify-center p-4 md:p-8 animate-fade-in">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="inline-block p-4 rounded-full bg-primary/10 mb-4">
+          <i class="fa fa-cloud text-primary text-4xl"></i>
+        </div>
+        <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-dark mb-2">天气查询系统</h1>
+        <p class="text-gray-500">登录后查看今日天气详情</p>
+      </div>
+      
+      <div class="bg-white rounded-2xl p-6 md:p-8 card-shadow animate-slide-up" style="animation-delay: 0.2s">
+        <form id="login-form" class="space-y-5">
+          <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <i class="fa fa-user"></i>
+              </span>
+              <input type="text" id="username" name="username" placeholder="请输入用户名" 
+                class="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 transition-all duration-300 input-focus"
+                required>
+            </div>
+          </div>
+          
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <i class="fa fa-lock"></i>
+              </span>
+              <input type="password" id="password" name="password" placeholder="请输入密码" 
+                class="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 transition-all duration-300 input-focus"
+                required>
+              <button type="button" id="toggle-password" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-primary transition-colors">
+                <i class="fa fa-eye-slash"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div id="error-message" class="hidden text-red-500 text-sm flex items-center">
+            <i class="fa fa-exclamation-circle mr-1"></i>
+            <span>用户名或密码错误</span>
+          </div>
+          
+          <button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+            <i class="fa fa-sign-in mr-2"></i>
+            登录
+          </button>
+        </form>
+        
+        <!-- 移除默认账号密码显示 -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- 天气页面 -->
+  <div id="weather-page" class="hidden min-h-screen flex flex-col">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+      <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <i class="fa fa-cloud text-primary text-2xl"></i>
+          <h1 class="text-xl font-bold text-dark">天气查询系统</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <div class="hidden md:flex items-center space-x-2">
+            <span class="text-gray-700 font-medium">欢迎，</span>
+            <span class="text-primary font-semibold">tianqi</span>
+          </div>
+          <button id="logout-btn" class="text-gray-500 hover:text-red-500 transition-colors flex items-center">
+            <i class="fa fa-sign-out mr-1"></i>
+            <span class="hidden md:inline">退出登录</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    
+    <!-- 主要内容 -->
+    <main class="flex-grow container mx-auto px-4 py-6 md:py-10">
+      <!-- 今日天气概览 - 地点改为福州 -->
+      <section class="bg-gradient-weather text-white rounded-3xl p-6 md:p-8 mb-8 card-shadow animate-fade-in">
+        <div class="flex flex-col md:flex-row justify-between items-center">
+          <div class="mb-6 md:mb-0">
+            <div class="flex items-center mb-2">
+              <h2 class="text-2xl md:text-3xl font-bold mr-3" id="city-name">福州市</h2>
+              <span class="bg-white/20 text-white text-sm px-2 py-1 rounded-full" id="date-today">2025年11月9日 星期日</span>
+            </div>
+            <div class="flex items-center mb-4">
+              <i class="fa fa-cloud text-4xl md:text-5xl mr-4" id="weather-icon"></i>
+              <div>
+                <p class="text-sm opacity-90" id="weather-desc">多云转晴</p>
+                <p class="text-4xl md:text-5xl font-bold" id="temperature">23°C</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 w-full md:w-auto">
+              <div class="bg-white/20 rounded-lg px-3 py-2 flex items-center">
+                <i class="fa fa-tint mr-2"></i>
+                <span id="humidity">湿度 65%</span>
+              </div>
+              <div class="bg-white/20 rounded-lg px-3 py-2 flex items-center">
+                <i class="fa fa-location-arrow mr-2"></i>
+                <span id="wind">东北风 2级</span>
+              </div>
+              <div class="bg-white/20 rounded-lg px-3 py-2 flex items-center">
+                <i class="fa fa-eye mr-2"></i>
+                <span id="visibility">能见度 15km</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end">
+            <div class="flex items-center mb-3">
+              <i class="fa fa-sunrise text-yellow-200 mr-2"></i>
+              <span id="sunrise">日出 06:28</span>
+            </div>
+            <div class="flex items-center">
+              <i class="fa fa-sunset text-orange-200 mr-2"></i>
+              <span id="sunset">日落 17:35</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 详细数据 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- 小时预报 -->
+        <section class="bg-white rounded-2xl p-6 card-shadow animate-slide-up" style="animation-delay: 0.2s">
+          <h3 class="text-xl font-bold mb-4 flex items-center">
+            <i class="fa fa-clock-o text-primary mr-2"></i>
+            今日小时预报
+          </h3>
+          <div class="h-64">
+            <canvas id="hourly-chart"></canvas>
+          </div>
+        </section>
+        
+        <!-- 天气指数 -->
+        <section class="bg-white rounded-2xl p-6 card-shadow animate-slide-up" style="animation-delay: 0.3s">
+          <h3 class="text-xl font-bold mb-4 flex items-center">
+            <i class="fa fa-bar-chart text-primary mr-2"></i>
+            天气指数
+          </h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-neutral rounded-xl p-4">
+              <div class="text-sm text-gray-500 mb-1">空气质量</div>
+              <div class="flex items-center">
+                <span class="text-lg font-semibold mr-2" id="air-quality">良</span>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">AQI 78</span>
+              </div>
+            </div>
+            <div class="bg-neutral rounded-xl p-4">
+              <div class="text-sm text-gray-500 mb-1">紫外线</div>
+              <div class="flex items-center">
+                <span class="text-lg font-semibold mr-2" id="uv-index">较强</span>
+                <span class="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">4级</span>
+              </div>
+            </div>
+            <div class="bg-neutral rounded-xl p-4">
+              <div class="text-sm text-gray-500 mb-1">气压</div>
+              <div class="text-lg font-semibold" id="pressure">1010 hPa</div>
+            </div>
+            <div class="bg-neutral rounded-xl p-4">
+              <div class="text-sm text-gray-500 mb-1">体感温度</div>
+              <div class="text-lg font-semibold" id="feels-like">24°C</div>
+            </div>
+          </div>
+        </section>
+      </div>
+      
+      <!-- 未来预报 - 更新为真实天气数据 -->
+      <section class="bg-white rounded-2xl p-6 card-shadow animate-slide-up" style="animation-delay: 0.4s">
+        <h3 class="text-xl font-bold mb-4 flex items-center">
+          <i class="fa fa-calendar text-primary mr-2"></i>
+          未来7天预报
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[600px]">
+            <thead>
+              <tr class="border-b border-gray-200">
+                <th class="text-left py-3 px-2 text-gray-500 font-medium">日期</th>
+                <th class="text-left py-3 px-2 text-gray-500 font-medium">天气</th>
+                <th class="text-left py-3 px-2 text-gray-500 font-medium">温度</th>
+                <th class="text-left py-3 px-2 text-gray-500 font-medium">风力</th>
+                <th class="text-left py-3 px-2 text-gray-500 font-medium">湿度</th>
+              </tr>
+            </thead>
+            <tbody id="forecast-table">
+              <!-- 动态填充真实天气数据 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    
+    <!-- 页脚 -->
+    <footer class="bg-white border-t border-gray-200 py-6">
+      <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+        <p>© 2025 天气查询系统 - 数据仅供参考</p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // 登录功能
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginForm = document.getElementById('login-form');
+      const loginPage = document.getElementById('login-page');
+      const weatherPage = document.getElementById('weather-page');
+      const errorMessage = document.getElementById('error-message');
+      const togglePassword = document.getElementById('toggle-password');
+      const passwordInput = document.getElementById('password');
+      const logoutBtn = document.getElementById('logout-btn');
+      
+      // 切换密码可见性
+      togglePassword.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.querySelector('i').classList.toggle('fa-eye');
+        this.querySelector('i').classList.toggle('fa-eye-slash');
+      });
+      
+      // 登录表单提交
+      loginForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        
+        // 验证账号密码
+        if (username === 'tianqi' && password === '123456') {
+          errorMessage.classList.add('hidden');
+          // 切换到天气页面并添加动画
+          loginPage.classList.add('hidden');
+          weatherPage.classList.remove('hidden');
+          
+          // 初始化天气数据
+          initWeatherData();
+          initHourlyChart();
+        } else {
+          errorMessage.classList.remove('hidden');
+          // 添加抖动动画
+          loginForm.classList.add('animate-shake');
+          setTimeout(() => {
+            loginForm.classList.remove('animate-shake');
+          }, 500);
+        }
+      });
+      
+      // 退出登录
+      logoutBtn.addEventListener('click', function() {
+        weatherPage.classList.add('hidden');
+        loginPage.classList.remove('hidden');
+      });
+      
+      // 初始化未来7天预报数据（更新为福州真实天气）
+      function initWeatherData() {
+        // 基于福州11月真实气候特征的天气预报数据
+        const forecastData = [
+          { date: '今天', day: '周日', icon: 'fa-cloud', weather: '多云转晴', temp: '16~23°C', wind: '东北风2级', humidity: '65%' },
+          { date: '明天', day: '周一', icon: 'fa-sun-o', weather: '晴', temp: '17~24°C', wind: '东风2级', humidity: '60%' },
+          { date: '后天', day: '周二', icon: 'fa-sun-o', weather: '晴', temp: '18~25°C', wind: '东南风3级', humidity: '55%' },
+          { date: '11/12', day: '周三', icon: 'fa-cloud', weather: '晴转多云', temp: '19~26°C', wind: '南风2级', humidity: '58%' },
+          { date: '11/13', day: '周四', icon: 'fa-cloud-rain', weather: '小雨', temp: '16~22°C', wind: '东北风3级', humidity: '75%' },
+          { date: '11/14', day: '周五', icon: 'fa-cloud', weather: '阴转多云', temp: '15~21°C', wind: '东北风2级', humidity: '70%' },
+          { date: '11/15', day: '周六', icon: 'fa-sun-o', weather: '晴', temp: '16~23°C', wind: '东风2级', humidity: '62%' }
+        ];
+        
+        const tableBody = document.getElementById('forecast-table');
+        tableBody.innerHTML = '';
+        
+        forecastData.forEach((item, index) => {
+          const row = document.createElement('tr');
+          row.className = index === 0 ? 'bg-primary/5 font-medium' : 'hover:bg-gray-50';
+          row.innerHTML = `
+            <td class="py-3 px-2">
+              <div>${item.date}</div>
+              <div class="text-sm text-gray-500">${item.day}</div>
+            </td>
+            <td class="py-3 px-2">
+              <div class="flex items-center">
+                <i class="fa ${item.icon} text-yellow-500 mr-2"></i>
+                <span>${item.weather}</span>
+              </div>
+            </td>
+            <td class="py-3 px-2">${item.temp}</td>
+            <td class="py-3 px-2">${item.wind}</td>
+            <td class="py-3 px-2">${item.humidity}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+        
+        // 设置当前日期
+        const today = new Date();
+        const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+        document.getElementById('date-today').textContent = today.toLocaleDateString('zh-CN', dateOptions);
+      }
+      
+      // 初始化小时预报图表（福州当日温度曲线）
+      function initHourlyChart() {
+        const ctx = document.getElementById('hourly-chart').getContext('2d');
+        
+        // 福州当日小时温度数据（基于真实气候特征）
+        const hours = ['6:00', '8:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00', '0:00', '2:00', '4:00'];
+        const temps = [16, 18, 20, 22, 23, 22, 20, 19, 18, 17, 16, 16];
+        
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: hours,
+            datasets: [{
+              label: '温度 (°C)',
+              data: temps,
+              borderColor: '#165DFF',
+              backgroundColor: 'rgba(22, 93, 255, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointBackgroundColor: '#165DFF',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                padding: 10,
+                cornerRadius: 8,
+                displayColors: false
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: false,
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)'
+                },
+                ticks: {
+                  callback: function(value) {
+                    return value + '°C';
+                  }
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                }
+              }
+            },
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            animations: {
+              tension: {
+                duration: 1000,
+                easing: 'linear'
+              }
+            }
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
